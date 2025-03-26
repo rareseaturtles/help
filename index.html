@@ -247,29 +247,33 @@
         const turtleEl = document.getElementById("turtle");
         const pastWinnersListEl = document.getElementById("past-winners-list");
 
-        // Get the current month and year for the subcollection name (e.g., "March_2025")
+        // Get the current month and year for the collection name (e.g., "March_2025")
         function getCurrentMonthYear() {
             const now = moment();
             return now.format("MMMM_YYYY"); // e.g., "March_2025"
         }
 
-        // Fetch wallet list from Firestore (GiveawayEntries/currentEntries/March_2025 subcollection)
+        // Fetch wallet list from Firestore (GiveawayEntries/March_2025 collection)
         let wallets = [];
         async function fetchWallets() {
             try {
-                const subcollectionName = getCurrentMonthYear(); // e.g., "March_2025"
-                const querySnapshot = await db
-                    .collection("GiveawayEntries")
-                    .doc("currentEntries")
-                    .collection(subcollectionName)
-                    .get();
+                const collectionName = `GiveawayEntries/${getCurrentMonthYear()}`; // e.g., "GiveawayEntries/March_2025"
+                console.log("Fetching wallets from collection:", collectionName);
+                const querySnapshot = await db.collection(collectionName).get();
+                console.log("Number of documents found:", querySnapshot.size);
+
                 wallets = [];
                 querySnapshot.forEach(doc => {
                     const data = doc.data();
+                    console.log("Document data:", data);
                     if (data.wallet) {
                         wallets.push(data.wallet);
+                    } else {
+                        console.log("No 'wallet' field found in document:", doc.id);
                     }
                 });
+
+                console.log("Fetched wallets:", wallets);
                 displayWallets();
             } catch (error) {
                 console.error("Error fetching wallets:", error);
