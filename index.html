@@ -24,6 +24,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <style>
         body {
             font-family: 'Roboto', sans-serif;
@@ -198,7 +200,9 @@
         </div>
 
         <h3>Eligible Wallets (<span id="wallet-count">0</span>)</h3>
-        <div class="wallet-list" id="wallet-list"></div>
+        <div class="wallet-list" id="wallet-list">
+            <p>Loading wallets...</p>
+        </div>
 
         <div class="winner-announcement" id="winner-announcement">
             <h3>Latest Winner</h3>
@@ -217,14 +221,18 @@
     </footer>
 
     <script>
-        // Sample list of eligible wallet addresses (replace with your actual list)
-        const wallets = [
-            "3K9hZ5wdfphd8wUoh6rqrv5STvB58yBRaXuZFAWwitKm8",
-            "7N2hZ5wdfphd8wUoh6rqrv5STvB58yBRaXuZFAWwitKm9",
-            "9P4hZ5wdfphd8wUoh6rqrv5STvB58yBRaXuZFAWwitKm0",
-            "2M5hZ5wdfphd8wUoh6rqrv5STvB58yBRaXuZFAWwitKm1",
-            "8L6hZ5wdfphd8wUoh6rqrv5STvB58yBRaXuZFAWwitKm2"
-        ];
+        // Firebase config (same as Cryptodira site)
+        const firebaseConfig = {
+            apiKey: "AIzaSyABc3oR2hxlm_DTE9vsEHufk7BZ6TqeKP0",
+            authDomain: "voting-f332e.firebaseapp.com",
+            projectId: "voting-f332e",
+            storageBucket: "voting-f332e.firebasestorage.app",
+            messagingSenderId: "551078651014",
+            appId: "1:551078651014:web:86646146a581b8dc3edd07",
+            measurementId: "G-WYLGQ9B7KC"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
 
         // DOM elements
         const timerEl = document.getElementById("timer");
@@ -239,9 +247,33 @@
         const turtleEl = document.getElementById("turtle");
         const pastWinnersListEl = document.getElementById("past-winners-list");
 
-        // Initialize wallet list
+        // Fetch wallet list from Firestore (GiveawayEntries collection)
+        let wallets = [];
+        async function fetchWallets() {
+            try {
+                const querySnapshot = await db.collection("GiveawayEntries").get();
+                wallets = [];
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.wallet) {
+                        wallets.push(data.wallet);
+                    }
+                });
+                displayWallets();
+            } catch (error) {
+                console.error("Error fetching wallets:", error);
+                walletListEl.innerHTML = "<p>Error loading wallets: " + error.message + "</p>";
+                walletCountEl.textContent = "0";
+            }
+        }
+
+        // Display the wallet list
         function displayWallets() {
-            walletListEl.innerHTML = wallets.map(wallet => `<p>${wallet}</p>`).join("");
+            if (wallets.length === 0) {
+                walletListEl.innerHTML = "<p>No eligible wallets found.</p>";
+            } else {
+                walletListEl.innerHTML = wallets.map(wallet => `<p>${wallet}</p>`).join("");
+            }
             walletCountEl.textContent = wallets.length;
         }
 
@@ -272,6 +304,11 @@
 
         // Randomly pick a winner and animate the announcement
         function pickWinner() {
+            if (wallets.length === 0) {
+                winnerEl.textContent = "No eligible wallets to pick from.";
+                return;
+            }
+
             const winner = wallets[Math.floor(Math.random() * wallets.length)];
             winnerEl.textContent = winner;
 
@@ -301,7 +338,7 @@
         }
 
         // Initialize the page
-        displayWallets();
+        fetchWallets();
         updateTimer();
         setInterval(updateTimer, 1000);
     </script>
