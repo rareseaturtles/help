@@ -247,11 +247,22 @@
         const turtleEl = document.getElementById("turtle");
         const pastWinnersListEl = document.getElementById("past-winners-list");
 
-        // Fetch wallet list from Firestore (GiveawayEntries collection)
+        // Get the current month and year for the subcollection name (e.g., "March_2025")
+        function getCurrentMonthYear() {
+            const now = moment();
+            return now.format("MMMM_YYYY"); // e.g., "March_2025"
+        }
+
+        // Fetch wallet list from Firestore (GiveawayEntries/currentEntries/March_2025 subcollection)
         let wallets = [];
         async function fetchWallets() {
             try {
-                const querySnapshot = await db.collection("GiveawayEntries").get();
+                const subcollectionName = getCurrentMonthYear(); // e.g., "March_2025"
+                const querySnapshot = await db
+                    .collection("GiveawayEntries")
+                    .doc("currentEntries")
+                    .collection(subcollectionName)
+                    .get();
                 wallets = [];
                 querySnapshot.forEach(doc => {
                     const data = doc.data();
@@ -270,7 +281,7 @@
         // Display the wallet list
         function displayWallets() {
             if (wallets.length === 0) {
-                walletListEl.innerHTML = "<p>No eligible wallets found.</p>";
+                walletListEl.innerHTML = "<p>No eligible wallets found for this month.</p>";
             } else {
                 walletListEl.innerHTML = wallets.map(wallet => `<p>${wallet}</p>`).join("");
             }
@@ -293,6 +304,8 @@
                 // Time's up! Pick a winner and reset the timer
                 pickWinner();
                 endOfMonth = getEndOfMonth();
+                // Fetch the new month's wallet list
+                fetchWallets();
             }
 
             const duration = moment.duration(diff);
