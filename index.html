@@ -247,34 +247,33 @@
         const turtleEl = document.getElementById("turtle");
         const pastWinnersListEl = document.getElementById("past-winners-list");
 
-        // Get the current month and year for the collection name (e.g., "March_2025")
+        // Get the current month and year for the document name (e.g., "March_2025")
         function getCurrentMonthYear() {
             const now = moment();
             return now.format("MMMM_YYYY"); // e.g., "March_2025"
         }
 
-        // Fetch wallet list from Firestore (GiveawayEntries/March_2025 collection)
+        // Fetch wallet list from Firestore (GiveawayEntries/March_2025 document)
         let wallets = [];
         async function fetchWallets() {
             try {
-                const collectionName = `GiveawayEntries/${getCurrentMonthYear()}`; // e.g., "GiveawayEntries/March_2025"
-                console.log("Fetching wallets from collection:", collectionName);
-                const querySnapshot = await db.collection(collectionName).get();
-                console.log("Number of documents found:", querySnapshot.size);
+                const docName = getCurrentMonthYear(); // e.g., "March_2025"
+                console.log("Fetching wallets from document: GiveawayEntries/" + docName);
+                const docRef = db.collection("GiveawayEntries").doc(docName);
+                const doc = await docRef.get();
 
-                wallets = [];
-                querySnapshot.forEach(doc => {
+                if (doc.exists) {
                     const data = doc.data();
                     console.log("Document data:", data);
-                    if (data.wallet) {
-                        wallets.push(data.wallet);
-                    } else {
-                        console.log("No 'wallet' field found in document:", doc.id);
-                    }
-                });
-
-                console.log("Fetched wallets:", wallets);
-                displayWallets();
+                    // The wallet addresses are the field names in the document
+                    wallets = Object.keys(data);
+                    console.log("Fetched wallets:", wallets);
+                    displayWallets();
+                } else {
+                    console.log("Document does not exist for this month.");
+                    walletListEl.innerHTML = "<p>No eligible wallets found for this month.</p>";
+                    walletCountEl.textContent = "0";
+                }
             } catch (error) {
                 console.error("Error fetching wallets:", error);
                 walletListEl.innerHTML = "<p>Error loading wallets: " + error.message + "</p>";
