@@ -191,7 +191,7 @@
         <h2>Monthly Giveaway</h2>
         <p>Join the Turtle Treasure Giveaway! Hold 500+ DIRA tokens to be eligible. A winner is randomly selected at the end of each month.</p>
 
-        <h3>Time Until Next Draw (UTC)</h3>
+        <h3>Time Until Next Draw (UTC+14:00)</h3>
         <div class="timer" id="timer">
             <div><span id="days">00</span> Days</div>
             <div><span id="hours">00</span> Hours</div>
@@ -251,15 +251,15 @@
         let serverTimeOffset = 0; // Offset between server time and local time
         let hasPickedWinner = false; // Flag to prevent multiple winner picks
 
-        // Fetch server time from WorldTimeAPI
+        // Fetch server time from WorldTimeAPI for UTC+14:00 (Pacific/Kiritimati)
         async function fetchServerTime() {
             try {
-                const response = await fetch("http://worldtimeapi.org/api/timezone/Etc/UTC");
+                const response = await fetch("http://worldtimeapi.org/api/timezone/Pacific/Kiritimati");
                 const data = await response.json();
-                const serverTime = moment.utc(data.utc_datetime);
+                const serverTime = moment.utc(data.utc_datetime); // Server time in UTC
                 const localTime = moment.utc();
                 serverTimeOffset = serverTime.diff(localTime); // Calculate offset
-                console.log("Server time fetched:", serverTime.format());
+                console.log("Server time (UTC) fetched:", serverTime.format());
                 console.log("Server time offset (ms):", serverTimeOffset);
             } catch (error) {
                 console.error("Error fetching server time:", error);
@@ -273,9 +273,14 @@
             return moment.utc().add(serverTimeOffset, "milliseconds");
         }
 
-        // Get the current month and year for the document name (e.g., "March_2025") in UTC
+        // Get the current time in UTC+14:00
+        function getCurrentServerTimeInUTC14() {
+            return getCurrentServerTime().utcOffset(14 * 60); // UTC+14:00
+        }
+
+        // Get the current month and year for the document name (e.g., "March_2025") in UTC+14:00
         function getCurrentMonthYear() {
-            const now = getCurrentServerTime();
+            const now = getCurrentServerTimeInUTC14();
             return now.format("MMMM_YYYY"); // e.g., "March_2025"
         }
 
@@ -317,20 +322,20 @@
             walletCountEl.textContent = wallets.length;
         }
 
-        // Calculate the end of the current month in UTC
+        // Calculate the end of the current month in UTC+14:00
         function getEndOfMonth() {
-            const now = getCurrentServerTime();
-            return moment.utc(now).endOf("month").set({ hour: 23, minute: 59, second: 59 });
+            const now = getCurrentServerTimeInUTC14();
+            return moment(now).utcOffset(14 * 60).endOf("month").set({ hour: 23, minute: 59, second: 59 });
         }
 
-        // Update the countdown timer using server time
+        // Update the countdown timer using server time in UTC+14:00
         let endOfMonth = null;
         async function updateTimer() {
             if (!endOfMonth) {
                 endOfMonth = getEndOfMonth();
             }
 
-            const now = getCurrentServerTime();
+            const now = getCurrentServerTimeInUTC14();
             const diff = endOfMonth.diff(now);
 
             if (diff <= 0 && !hasPickedWinner) {
@@ -374,8 +379,8 @@
                 colors: ["#2e7d32", "#e0f7fa", "#a5d6a7"]
             });
 
-            // Add to past winners using server time for the month
-            const month = getCurrentServerTime().format("MMMM YYYY");
+            // Add to past winners using server time in UTC+14:00 for the month
+            const month = getCurrentServerTimeInUTC14().format("MMMM YYYY");
             const li = document.createElement("li");
             li.textContent = `${month}: ${winner}`;
             pastWinnersListEl.insertBefore(li, pastWinnersListEl.firstChild);
