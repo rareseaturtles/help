@@ -247,9 +247,35 @@
         const turtleEl = document.getElementById("turtle");
         const pastWinnersListEl = document.getElementById("past-winners-list");
 
+        // Server time synchronization
+        let serverTimeOffset = 0; // Offset between server time and local time
+        let hasPickedWinner = false; // Flag to prevent multiple winner picks
+
+        // Fetch server time from WorldTimeAPI
+        async function fetchServerTime() {
+            try {
+                const response = await fetch("http://worldtimeapi.org/api/timezone/Etc/UTC");
+                const data = await response.json();
+                const serverTime = moment.utc(data.utc_datetime);
+                const localTime = moment.utc();
+                serverTimeOffset = serverTime.diff(localTime); // Calculate offset
+                console.log("Server time fetched:", serverTime.format());
+                console.log("Server time offset (ms):", serverTimeOffset);
+            } catch (error) {
+                console.error("Error fetching server time:", error);
+                // Fallback to local time if API fails
+                serverTimeOffset = 0;
+            }
+        }
+
+        // Get the current time adjusted for server offset
+        function getCurrentServerTime() {
+            return moment.utc().add(serverTimeOffset, "milliseconds");
+        }
+
         // Get the current month and year for the document name (e.g., "March_2025") in UTC
         function getCurrentMonthYear() {
-            const now = moment.utc();
+            const now = getCurrentServerTime();
             return now.format("MMMM_YYYY"); // e.g., "March_2025"
         }
 
@@ -293,19 +319,24 @@
 
         // Calculate the end of the current month in UTC
         function getEndOfMonth() {
-            const now = moment.utc(); // Use UTC
+            const now = getCurrentServerTime();
             return moment.utc(now).endOf("month").set({ hour: 23, minute: 59, second: 59 });
         }
 
-        // Update the countdown timer using UTC
-        let endOfMonth = getEndOfMonth();
-        function updateTimer() {
-            const now = moment.utc(); // Use UTC
+        // Update the countdown timer using server time
+        let endOfMonth = null;
+        async function updateTimer() {
+            if (!endOfMonth) {
+                endOfMonth = getEndOfMonth();
+            }
+
+            const now = getCurrentServerTime();
             const diff = endOfMonth.diff(now);
 
-            if (diff <= 0) {
+            if (diff <= 0 && !hasPickedWinner) {
                 // Time's up! Pick a winner and reset the timer
                 pickWinner();
+                hasPickedWinner = true; // Prevent multiple triggers
                 endOfMonth = getEndOfMonth();
                 // Fetch the new month's wallet list
                 fetchWallets();
@@ -343,8 +374,8 @@
                 colors: ["#2e7d32", "#e0f7fa", "#a5d6a7"]
             });
 
-            // Add to past winners using UTC for the month
-            const month = moment.utc().format("MMMM YYYY");
+            // Add to past winners using server time for the month
+            const month = getCurrentServerTime().format("MMMM YYYY");
             const li = document.createElement("li");
             li.textContent = `${month}: ${winner}`;
             pastWinnersListEl.insertBefore(li, pastWinnersListEl.firstChild);
@@ -354,9 +385,15 @@
         }
 
         // Initialize the page
-        fetchWallets();
-        updateTimer();
-        setInterval(updateTimer, 1000);
+        async function initialize() {
+            await fetchServerTime(); // Fetch server time first
+            await fetchWallets(); // Fetch wallets
+            updateTimer(); // Start the timer
+            setInterval(updateTimer, 1000); // Update every second
+        }
+
+        // Start the initialization
+        initialize();
     </script>
 </body>
 </html>
