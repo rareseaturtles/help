@@ -24,8 +24,218 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <!-- Firebase SDK (v9 Modular) -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+        import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
+        import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check.js';
+
+        // Firebase configuration with the new API key
+        const firebaseConfig = {
+            apiKey: "AIzaSyByf4k2cnkm0PIJGxqMlM1LQ54tW0_APY8",
+            authDomain: "voting-f332e.firebaseapp.com",
+            projectId: "voting-f332e",
+            storageBucket: "voting-f332e.firebasestorage.app",
+            messagingSenderId: "551078651014",
+            appId: "1:551078651014:web:86646146a581b8dc3edd07",
+            measurementId: "G-WYLGQ9B7KC"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+
+        // Initialize App Check with reCAPTCHA v3
+        const appCheck = initializeAppCheck(app, {
+            provider: new ReCaptchaV3Provider('YOUR_RECAPTCHA_SITE_KEY'), // Replace with your reCAPTCHA v3 site key
+            isTokenAutoRefreshEnabled: true
+        });
+
+        // Initialize Firestore and Auth
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // DOM elements
+        const timerEl = document.getElementById("timer");
+        const daysEl = document.getElementById("days");
+        const hoursEl = document.getElementById("hours");
+        const minutesEl = document.getElementById("minutes");
+        const secondsEl = document.getElementById("seconds");
+        const walletListEl = document.getElementById("wallet-list");
+        const walletCountEl = document.getElementById("wallet-count");
+        const winnerEl = document.getElementById("winner");
+        const winnerAnnouncementEl = document.getElementById("winner-announcement");
+        const turtleEl = document.getElementById("turtle");
+        const pastWinnersListEl = document.getElementById("past-winners-list");
+
+        // Server time synchronization
+        let serverTimeOffset = 0;
+        let hasPickedWinner = false;
+        let wallets = [];
+
+        // Sign in anonymously
+        async function authenticateUser() {
+            try {
+                await signInAnonymously(auth);
+                console.log("Signed in anonymously");
+            } catch (error) {
+                console.error("Anonymous sign-in failed:", error);
+                walletListEl.innerHTML = "<p>Error authenticating user: " + error.message + "</p>";
+            }
+        }
+
+        // Monitor authentication state
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                console.log("User is signed in:", user.uid);
+            } else {
+                console.log("No user is signed in. Attempting to sign in...");
+                authenticateUser();
+            }
+        });
+
+        // Fetch server time from WorldTimeAPI for UTC+14:00 (Pacific/Kiritimati)
+        async function fetchServerTime() {
+            try {
+                const response = await fetch("http://worldtimeapi.org/api/timezone/Pacific/Kiritimati");
+                const data = await response.json();
+                const serverTime = moment.utc(data.utc_datetime);
+                const localTime = moment.utc();
+                serverTimeOffset = serverTime.diff(localTime);
+                console.log("Server time (UTC) fetched:", serverTime.format());
+                console.log("Server time offset (ms):", serverTimeOffset);
+            } catch (error) {
+                console.error("Error fetching server time:", error);
+                serverTimeOffset = 0;
+            }
+        }
+
+        // Get the current time adjusted for server offset
+        function getCurrentServerTime() {
+            return moment.utc().add(serverTimeOffset, "milliseconds");
+        }
+
+        // Get the current time in UTC+14:00
+        function getCurrentServerTimeInUTC14() {
+            return getCurrentServerTime().utcOffset(14 * 60);
+        }
+
+        // Get the current month and year for the document name (e.g., "March_2025") in UTC+14:00
+        function getCurrentMonthYear() {
+            const now = getCurrentServerTimeInUTC14();
+            return now.format("MMMM_YYYY");
+        }
+
+        // Fetch wallet list from Firestore
+        async function fetchWallets() {
+            try {
+                const docName = getCurrentMonthYear();
+                console.log("Fetching wallets from document: GiveawayEntries/" + docName);
+                const docRef = doc(db, "GiveawayEntries", docName);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    console.log("Document data:", data);
+                    wallets = Object.keys(data);
+                    console.log("Fetched wallets:", wallets);
+                    displayWallets();
+                } else {
+                    console.log("Document does not exist for this month.");
+                    walletListEl.innerHTML = "<p>No eligible wallets found for this month.</p>";
+                    walletCountEl.textContent = "0";
+                }
+            } catch (error) {
+                console.error("Error fetching wallets:", error);
+                console.error("Error code:", error.code);
+                console.error("Error message:", error.message);
+                walletListEl.innerHTML = "<p>Error loading wallets: " + error.message + "</p>";
+                walletCountEl.textContent = "0";
+            }
+        }
+
+        // Display the wallet list
+        function displayWallets() {
+            if (wallets.length === 0) {
+                walletListEl.innerHTML = "<p>No eligible wallets found for this month.</p>";
+            } else {
+                walletListEl.innerHTML = wallets.map(wallet => `<p>${wallet}</p>`).join("");
+            }
+            walletCountEl.textContent = wallets.length;
+        }
+
+        // Calculate the end of the current month in UTC+14:00
+        function getEndOfMonth() {
+            const now = getCurrentServerTimeInUTC14();
+            return moment(now).utcOffset(14 * 60).endOf("month").set({ hour: 23, minute: 59, second: 59 });
+        }
+
+        // Update the countdown timer
+        let endOfMonth = null;
+        async function updateTimer() {
+            if (!endOfMonth) {
+                endOfMonth = getEndOfMonth();
+            }
+
+            const now = getCurrentServerTimeInUTC14();
+            const diff = endOfMonth.diff(now);
+
+            if (diff <= 0 && !hasPickedWinner) {
+                pickWinner();
+                hasPickedWinner = true;
+                endOfMonth = getEndOfMonth();
+                fetchWallets();
+            }
+
+            const duration = moment.duration(diff);
+            daysEl.textContent = Math.floor(duration.asDays()).toString().padStart(2, "0");
+            hoursEl.textContent = duration.hours().toString().padStart(2, "0");
+            minutesEl.textContent = duration.minutes().toString().padStart(2, "0");
+            secondsEl.textContent = duration.seconds().toString().padStart(2, "0");
+        }
+
+        // Randomly pick a winner and animate the announcement
+        function pickWinner() {
+            if (wallets.length === 0) {
+                winnerEl.textContent = "No eligible wallets to pick from.";
+                return;
+            }
+
+            const winner = wallets[Math.floor(Math.random() * wallets.length)];
+            winnerEl.textContent = winner;
+
+            const tl = gsap.timeline();
+            tl.to(winnerEl, { opacity: 0, duration: 0.5 })
+              .to(turtleEl, { x: "120%", duration: 2, ease: "power2.inOut" }, "-=0.5")
+              .to(winnerEl, { opacity: 1, duration: 1, ease: "bounce" })
+              .to(winnerAnnouncementEl, { background: "rgba(46, 125, 50, 0.2)", duration: 1 }, "-=1");
+
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ["#2e7d32", "#e0f7fa", "#a5d6a7"]
+            });
+
+            const month = getCurrentServerTimeInUTC14().format("MMMM YYYY");
+            const li = document.createElement("li");
+            li.textContent = `${month}: ${winner}`;
+            pastWinnersListEl.insertBefore(li, pastWinnersListEl.firstChild);
+
+            gsap.set(turtleEl, { x: "-100px" });
+        }
+
+        // Initialize the page
+        async function initialize() {
+            await fetchServerTime();
+            await fetchWallets();
+            updateTimer();
+            setInterval(updateTimer, 1000);
+        }
+
+        // Start the initialization
+        initialize();
+    </script>
     <style>
         body {
             font-family: 'Roboto', sans-serif;
@@ -191,7 +401,7 @@
         <h2>Monthly Giveaway</h2>
         <p>Join the Turtle Treasure Giveaway! Hold 500+ DIRA tokens to be eligible. A winner is randomly selected at the end of each month.</p>
 
-        <h3>Time Until Next Draw </h3>
+        <h3>Time Until Next Draw</h3>
         <div class="timer" id="timer">
             <div><span id="days">00</span> Days</div>
             <div><span id="hours">00</span> Hours</div>
@@ -219,186 +429,5 @@
     <footer>
         <p>© 2025 Turtle Treasure. Supporting Sea Turtle Conservation.</p>
     </footer>
-
-    <script>
-        // Firebase config (same as Cryptodira site)
-        const firebaseConfig = {
-            apiKey: "AIzaSyABc3oR2hxlm_DTE9vsEHufk7BZ6TqeKP0",
-            authDomain: "voting-f332e.firebaseapp.com",
-            projectId: "voting-f332e",
-            storageBucket: "voting-f332e.firebasestorage.app",
-            messagingSenderId: "551078651014",
-            appId: "1:551078651014:web:86646146a581b8dc3edd07",
-            measurementId: "G-WYLGQ9B7KC"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-
-        // DOM elements
-        const timerEl = document.getElementById("timer");
-        const daysEl = document.getElementById("days");
-        const hoursEl = document.getElementById("hours");
-        const minutesEl = document.getElementById("minutes");
-        const secondsEl = document.getElementById("seconds");
-        const walletListEl = document.getElementById("wallet-list");
-        const walletCountEl = document.getElementById("wallet-count");
-        const winnerEl = document.getElementById("winner");
-        const winnerAnnouncementEl = document.getElementById("winner-announcement");
-        const turtleEl = document.getElementById("turtle");
-        const pastWinnersListEl = document.getElementById("past-winners-list");
-
-        // Server time synchronization
-        let serverTimeOffset = 0; // Offset between server time and local time
-        let hasPickedWinner = false; // Flag to prevent multiple winner picks
-
-        // Fetch server time from WorldTimeAPI for UTC+14:00 (Pacific/Kiritimati)
-        async function fetchServerTime() {
-            try {
-                const response = await fetch("http://worldtimeapi.org/api/timezone/Pacific/Kiritimati");
-                const data = await response.json();
-                const serverTime = moment.utc(data.utc_datetime); // Server time in UTC
-                const localTime = moment.utc();
-                serverTimeOffset = serverTime.diff(localTime); // Calculate offset
-                console.log("Server time (UTC) fetched:", serverTime.format());
-                console.log("Server time offset (ms):", serverTimeOffset);
-            } catch (error) {
-                console.error("Error fetching server time:", error);
-                // Fallback to local time if API fails
-                serverTimeOffset = 0;
-            }
-        }
-
-        // Get the current time adjusted for server offset
-        function getCurrentServerTime() {
-            return moment.utc().add(serverTimeOffset, "milliseconds");
-        }
-
-        // Get the current time in UTC+14:00
-        function getCurrentServerTimeInUTC14() {
-            return getCurrentServerTime().utcOffset(14 * 60); // UTC+14:00
-        }
-
-        // Get the current month and year for the document name (e.g., "March_2025") in UTC+14:00
-        function getCurrentMonthYear() {
-            const now = getCurrentServerTimeInUTC14();
-            return now.format("MMMM_YYYY"); // e.g., "March_2025"
-        }
-
-        // Fetch wallet list from Firestore (GiveawayEntries/March_2025 document)
-        let wallets = [];
-        async function fetchWallets() {
-            try {
-                const docName = getCurrentMonthYear(); // e.g., "March_2025"
-                console.log("Fetching wallets from document: GiveawayEntries/" + docName);
-                const docRef = db.collection("GiveawayEntries").doc(docName);
-                const doc = await docRef.get();
-
-                if (doc.exists) {
-                    const data = doc.data();
-                    console.log("Document data:", data);
-                    // The wallet addresses are the field names in the document
-                    wallets = Object.keys(data);
-                    console.log("Fetched wallets:", wallets);
-                    displayWallets();
-                } else {
-                    console.log("Document does not exist for this month.");
-                    walletListEl.innerHTML = "<p>No eligible wallets found for this month.</p>";
-                    walletCountEl.textContent = "0";
-                }
-            } catch (error) {
-                console.error("Error fetching wallets:", error);
-                walletListEl.innerHTML = "<p>Error loading wallets: " + error.message + "</p>";
-                walletCountEl.textContent = "0";
-            }
-        }
-
-        // Display the wallet list
-        function displayWallets() {
-            if (wallets.length === 0) {
-                walletListEl.innerHTML = "<p>No eligible wallets found for this month.</p>";
-            } else {
-                walletListEl.innerHTML = wallets.map(wallet => `<p>${wallet}</p>`).join("");
-            }
-            walletCountEl.textContent = wallets.length;
-        }
-
-        // Calculate the end of the current month in UTC+14:00
-        function getEndOfMonth() {
-            const now = getCurrentServerTimeInUTC14();
-            return moment(now).utcOffset(14 * 60).endOf("month").set({ hour: 23, minute: 59, second: 59 });
-        }
-
-        // Update the countdown timer using server time in UTC+14:00
-        let endOfMonth = null;
-        async function updateTimer() {
-            if (!endOfMonth) {
-                endOfMonth = getEndOfMonth();
-            }
-
-            const now = getCurrentServerTimeInUTC14();
-            const diff = endOfMonth.diff(now);
-
-            if (diff <= 0 && !hasPickedWinner) {
-                // Time's up! Pick a winner and reset the timer
-                pickWinner();
-                hasPickedWinner = true; // Prevent multiple triggers
-                endOfMonth = getEndOfMonth();
-                // Fetch the new month's wallet list
-                fetchWallets();
-            }
-
-            const duration = moment.duration(diff);
-            daysEl.textContent = Math.floor(duration.asDays()).toString().padStart(2, "0");
-            hoursEl.textContent = duration.hours().toString().padStart(2, "0");
-            minutesEl.textContent = duration.minutes().toString().padStart(2, "0");
-            secondsEl.textContent = duration.seconds().toString().padStart(2, "0");
-        }
-
-        // Randomly pick a winner and animate the announcement
-        function pickWinner() {
-            if (wallets.length === 0) {
-                winnerEl.textContent = "No eligible wallets to pick from.";
-                return;
-            }
-
-            const winner = wallets[Math.floor(Math.random() * wallets.length)];
-            winnerEl.textContent = winner;
-
-            // Animate the winner announcement
-            const tl = gsap.timeline();
-            tl.to(winnerEl, { opacity: 0, duration: 0.5 })
-              .to(turtleEl, { x: "120%", duration: 2, ease: "power2.inOut" }, "-=0.5")
-              .to(winnerEl, { opacity: 1, duration: 1, ease: "bounce" })
-              .to(winnerAnnouncementEl, { background: "rgba(46, 125, 50, 0.2)", duration: 1 }, "-=1");
-
-            // Add confetti effect
-            confetti({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ["#2e7d32", "#e0f7fa", "#a5d6a7"]
-            });
-
-            // Add to past winners using server time in UTC+14:00 for the month
-            const month = getCurrentServerTimeInUTC14().format("MMMM YYYY");
-            const li = document.createElement("li");
-            li.textContent = `${month}: ${winner}`;
-            pastWinnersListEl.insertBefore(li, pastWinnersListEl.firstChild);
-
-            // Reset turtle position
-            gsap.set(turtleEl, { x: "-100px" });
-        }
-
-        // Initialize the page
-        async function initialize() {
-            await fetchServerTime(); // Fetch server time first
-            await fetchWallets(); // Fetch wallets
-            updateTimer(); // Start the timer
-            setInterval(updateTimer, 1000); // Update every second
-        }
-
-        // Start the initialization
-        initialize();
-    </script>
 </body>
 </html>
