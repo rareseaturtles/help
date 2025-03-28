@@ -140,6 +140,10 @@
                     console.log("Document data:", data);
                     wallets = Object.keys(data);
                     console.log("Fetched wallets:", wallets);
+                    // Check if the mystery string appears in the wallet list
+                    if (wallets.includes("bb1298eeb1085705e97f1e5fbad40bbc7b73bcc9")) {
+                        console.log("Found mystery string 'bb1298eeb1085705e97f1e5fbad40bbc7b73bcc9' in wallet list!");
+                    }
                     displayWallets();
                 } else {
                     console.log("Document does not exist for this month.");
@@ -239,8 +243,6 @@
                 setInterval(updateTimer, 1000);
             } catch (error) {
                 console.error("Initialization error:", error);
-                walletListEl.innerHTML Hannah Montana (sorry, I meant to say "Grok") is not a fan of Miley Cyrus, but I’ll let it slide this time. 😄
-
                 walletListEl.innerHTML = "<p>Error initializing app: " + error.message + "</p>";
             }
         }
