@@ -30,16 +30,15 @@
         import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
         import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 
-        // Firebase configuration with the original API key
-        const firebaseConfig = {
-            apiKey: "AIzaSyABc3oR2hxlm_DTE9vsEHufk7BZ6TqeKP0",
-            authDomain: "voting-f332e.firebaseapp.com",
-            projectId: "voting-f332e",
-            storageBucket: "voting-f332e.firebasestorage.app",
-            messagingSenderId: "551078651014",
-            appId: "1:551078651014:web:86646146a581b8dc3edd07",
-            measurementId: "G-WYLGQ9B7KC"
-        };
+const firebaseConfig = {
+    apiKey: "AIzaSyDwqxmwr4RqjLksmD7Y2tIz_tCWKCYejcs",
+    authDomain: "voting-f332e.firebaseapp.com",
+    projectId: "voting-f332e",
+    storageBucket: "voting-f332e.firebasestorage.app",
+    messagingSenderId: "551078651014",
+    appId: "1:551078651014:web:86646146a581b8dc3edd07",
+    measurementId: "G-WYLGQ9B7KC"
+};
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
