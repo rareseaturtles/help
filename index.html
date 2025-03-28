@@ -26,6 +26,8 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <!-- Add Firebase Auth if you want to restrict access -->
+    <!-- <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script> -->
     <style>
         body {
             font-family: 'Roboto', sans-serif;
@@ -221,7 +223,7 @@
     </footer>
 
     <script>
-        // Firebase config (same as Cryptodira site)
+        // Firebase config
         const firebaseConfig = {
             apiKey: "AIzaSyA-2eulZgakbkuaNv8IN0zoKq_ZP1yhE38",
             authDomain: "voting-f332e.firebaseapp.com",
@@ -248,23 +250,26 @@
         const pastWinnersListEl = document.getElementById("past-winners-list");
 
         // Server time synchronization
-        let serverTimeOffset = 0; // Offset between server time and local time
-        let hasPickedWinner = false; // Flag to prevent multiple winner picks
+        let serverTimeOffset = 0;
+        let hasPickedWinner = false;
+        let wallets = [];
 
         // Fetch server time from WorldTimeAPI for UTC+14:00 (Pacific/Kiritimati)
         async function fetchServerTime() {
             try {
-                const response = await fetch("http://worldtimeapi.org/api/timezone/Pacific/Kiritimati");
+                const response = await fetch("https://worldtimeapi.org/api/timezone/Pacific/Kiritimati");
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
                 const data = await response.json();
-                const serverTime = moment.utc(data.utc_datetime); // Server time in UTC
+                const serverTime = moment.utc(data.utc_datetime);
                 const localTime = moment.utc();
-                serverTimeOffset = serverTime.diff(localTime); // Calculate offset
+                serverTimeOffset = serverTime.diff(localTime);
                 console.log("Server time (UTC) fetched:", serverTime.format());
                 console.log("Server time offset (ms):", serverTimeOffset);
             } catch (error) {
-                console.error("Error fetching server time:", error);
-                // Fallback to local time if API fails
-                serverTimeOffset = 0;
+                console.error("Error fetching server time:", error.message);
+                serverTimeOffset = 0; // Fallback to local time if API fails
             }
         }
 
@@ -275,20 +280,19 @@
 
         // Get the current time in UTC+14:00
         function getCurrentServerTimeInUTC14() {
-            return getCurrentServerTime().utcOffset(14 * 60); // UTC+14:00
+            return getCurrentServerTime().utcOffset(14 * 60);
         }
 
         // Get the current month and year for the document name (e.g., "March_2025") in UTC+14:00
         function getCurrentMonthYear() {
             const now = getCurrentServerTimeInUTC14();
-            return now.format("MMMM_YYYY"); // e.g., "March_2025"
+            return now.format("MMMM_YYYY");
         }
 
         // Fetch wallet list from Firestore (GiveawayEntries/March_2025 document)
-        let wallets = [];
         async function fetchWallets() {
             try {
-                const docName = getCurrentMonthYear(); // e.g., "March_2025"
+                const docName = getCurrentMonthYear();
                 console.log("Fetching wallets from document: GiveawayEntries/" + docName);
                 const docRef = db.collection("GiveawayEntries").doc(docName);
                 const doc = await docRef.get();
@@ -296,7 +300,6 @@
                 if (doc.exists) {
                     const data = doc.data();
                     console.log("Document data:", data);
-                    // The wallet addresses are the field names in the document
                     wallets = Object.keys(data);
                     console.log("Fetched wallets:", wallets);
                     displayWallets();
@@ -306,7 +309,7 @@
                     walletCountEl.textContent = "0";
                 }
             } catch (error) {
-                console.error("Error fetching wallets:", error);
+                console.error("Error fetching wallets:", error.message);
                 walletListEl.innerHTML = "<p>Error loading wallets: " + error.message + "</p>";
                 walletCountEl.textContent = "0";
             }
@@ -339,11 +342,9 @@
             const diff = endOfMonth.diff(now);
 
             if (diff <= 0 && !hasPickedWinner) {
-                // Time's up! Pick a winner and reset the timer
                 pickWinner();
-                hasPickedWinner = true; // Prevent multiple triggers
+                hasPickedWinner = true;
                 endOfMonth = getEndOfMonth();
-                // Fetch the new month's wallet list
                 fetchWallets();
             }
 
@@ -364,14 +365,12 @@
             const winner = wallets[Math.floor(Math.random() * wallets.length)];
             winnerEl.textContent = winner;
 
-            // Animate the winner announcement
             const tl = gsap.timeline();
             tl.to(winnerEl, { opacity: 0, duration: 0.5 })
               .to(turtleEl, { x: "120%", duration: 2, ease: "power2.inOut" }, "-=0.5")
               .to(winnerEl, { opacity: 1, duration: 1, ease: "bounce" })
               .to(winnerAnnouncementEl, { background: "rgba(46, 125, 50, 0.2)", duration: 1 }, "-=1");
 
-            // Add confetti effect
             confetti({
                 particleCount: 100,
                 spread: 70,
@@ -379,25 +378,35 @@
                 colors: ["#2e7d32", "#e0f7fa", "#a5d6a7"]
             });
 
-            // Add to past winners using server time in UTC+14:00 for the month
             const month = getCurrentServerTimeInUTC14().format("MMMM YYYY");
             const li = document.createElement("li");
             li.textContent = `${month}: ${winner}`;
             pastWinnersListEl.insertBefore(li, pastWinnersListEl.firstChild);
-
-            // Reset turtle position
             gsap.set(turtleEl, { x: "-100px" });
         }
 
         // Initialize the page
         async function initialize() {
-            await fetchServerTime(); // Fetch server time first
-            await fetchWallets(); // Fetch wallets
-            updateTimer(); // Start the timer
-            setInterval(updateTimer, 1000); // Update every second
+            await fetchServerTime();
+            await fetchWallets();
+            updateTimer();
+            setInterval(updateTimer, 1000);
         }
 
-        // Start the initialization
+        // If you want to restrict access, uncomment the following to add Firebase Authentication
+        /*
+        const auth = firebase.auth();
+        auth.signInAnonymously()
+            .then(() => {
+                console.log("Signed in anonymously");
+                initialize();
+            })
+            .catch(error => {
+                console.error("Anonymous auth failed:", error);
+            });
+        */
+
+        // Start the initialization (assuming public read access for now)
         initialize();
     </script>
 </body>
