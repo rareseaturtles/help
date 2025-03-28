@@ -30,9 +30,9 @@
         import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
         import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
 
-        // Firebase configuration with the new API key
+        // Firebase configuration with the original API key
         const firebaseConfig = {
-            apiKey: "AIzaSyA-2eulZgakbkuaNv8IN0zoKq_ZP1yhE38",
+            apiKey: "AIzaSyABc3oR2hxlm_DTE9vsEHufk7BZ6TqeKP0",
             authDomain: "voting-f332e.firebaseapp.com",
             projectId: "voting-f332e",
             storageBucket: "voting-f332e.firebasestorage.app",
@@ -79,6 +79,7 @@
                 console.error("Anonymous sign-in failed:", error);
                 console.error("Error code:", error.code);
                 console.error("Error message:", error.message);
+                console.error("Error details:", error);
                 walletListEl.innerHTML = "<p>Error authenticating user: " + error.message + "</p>";
             }
         }
@@ -125,11 +126,11 @@
             return now.format("MMMM_YYYY");
         }
 
-        // Fetch wallet list from Firestore
-        async function fetchWallets() {
+        // Fetch posts (or wallets) from Firestore
+        async function fetchPosts() {
             try {
                 const docName = getCurrentMonthYear();
-                console.log("Fetching wallets from document: GiveawayEntries/" + docName);
+                console.log("Fetching posts from document: GiveawayEntries/" + docName);
                 const docRef = doc(db, "GiveawayEntries", docName);
                 console.log("Attempting to fetch document...");
                 const docSnap = await getDoc(docRef);
@@ -139,7 +140,7 @@
                     const data = docSnap.data();
                     console.log("Document data:", data);
                     wallets = Object.keys(data);
-                    console.log("Fetched wallets:", wallets);
+                    console.log("Fetched posts/wallets:", wallets);
                     // Check if the mystery string appears in the wallet list
                     if (wallets.includes("bb1298eeb1085705e97f1e5fbad40bbc7b73bcc9")) {
                         console.log("Found mystery string 'bb1298eeb1085705e97f1e5fbad40bbc7b73bcc9' in wallet list!");
@@ -151,7 +152,7 @@
                     walletCountEl.textContent = "0";
                 }
             } catch (error) {
-                console.error("Error fetching wallets:", error);
+                console.error("Error fetching posts:", error);
                 console.error("Error code:", error.code);
                 console.error("Error message:", error.message);
                 if (error.code === "unavailable" || error.message.includes("client is offline")) {
@@ -193,7 +194,7 @@
                 pickWinner();
                 hasPickedWinner = true;
                 endOfMonth = getEndOfMonth();
-                fetchWallets();
+                fetchPosts();
             }
 
             const duration = moment.duration(diff);
@@ -238,7 +239,7 @@
         async function initialize() {
             try {
                 await fetchServerTime();
-                await fetchWallets();
+                await fetchPosts();
                 updateTimer();
                 setInterval(updateTimer, 1000);
             } catch (error) {
