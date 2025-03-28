@@ -77,6 +77,8 @@
                 console.log("Signed in anonymously:", userCredential.user.uid);
             } catch (error) {
                 console.error("Anonymous sign-in failed:", error);
+                console.error("Error code:", error.code);
+                console.error("Error message:", error.message);
                 walletListEl.innerHTML = "<p>Error authenticating user: " + error.message + "</p>";
             }
         }
@@ -230,10 +232,15 @@
 
         // Initialize the page
         async function initialize() {
-            await fetchServerTime();
-            await fetchWallets();
-            updateTimer();
-            setInterval(updateTimer, 1000);
+            try {
+                await fetchServerTime();
+                await fetchWallets();
+                updateTimer();
+                setInterval(updateTimer, 1000);
+            } catch (error) {
+                console.error("Initialization error:", error);
+                walletListEl.innerHTML = "<p>Error initializing app: " + error.message + "</p>";
+            }
         }
 
         // Start the initialization
